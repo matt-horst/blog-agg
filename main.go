@@ -67,6 +67,7 @@ func main() {
 	cmds.regiseter("login", handlerLogin)
 	cmds.regiseter("register", handlerRegister)
 	cmds.regiseter("reset", handlerReset)
+	cmds.regiseter("users", handlerUsers)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -135,6 +136,25 @@ func handlerReset(s *state, cmd command) error {
 	err := s.db.ResetUsers(context.Background())
 	if err != nil {
 		return fmt.Errorf("Failed to reset users table: %v\n", err)
+	}
+
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to get users from database: %v\n", err)
+	}
+
+	// Print all users to console
+	for _, user := range users {
+		current := ""
+		if user.Name == s.cfg.CurrentUserName {
+			current = " (current)"
+		} 
+
+		fmt.Printf("* %s%s\n", user.Name, current)
 	}
 
 	return nil
