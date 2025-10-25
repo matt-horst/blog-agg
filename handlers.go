@@ -8,6 +8,17 @@ import (
 	"github.com/google/uuid"
 )
 
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(s *state, cmd command) error {
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("Unable to find user `%s`: %v", s.cfg.CurrentUserName, err)
+		}
+
+		return handler(s, cmd, user)
+	}
+}
+
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("Username is required")
@@ -85,30 +96,13 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 
-func handlerAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-	rssFeed, err := fetchFeed(context.Background(), url)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(rssFeed)
-
-	return nil
-}
-
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return fmt.Errorf("addfeed requires two arguments: name url")
 	}
 
 	name := cmd.args[0]
 	url := cmd.args[1]
-
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return err
-	}
 
 	params := database.CreateFeedParams{
 		ID: uuid.New(),
@@ -154,7 +148,7 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		return fmt.Errorf("follow command requires url argument")
 	}
@@ -164,11 +158,6 @@ func handlerFollow(s *state, cmd command) error {
 	feed, err := s.db.GetFeed(context.Background(), url)
 	if err != nil {
 		return fmt.Errorf("Unable to find feed `%s`: %v", url, err)
-	}
-
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("Unable to find user `%s`: %v", s.cfg.CurrentUserName, err)
 	}
 
 	feedFollow, err := s.db.CreateFeedFollow(
@@ -188,7 +177,7 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, _ command) error {
+func handlerFollowing(s *state, _ command, _ database.User) error {
 	following, err := s.db.GetFeedFollowsForUser(context.Background(), s.cfg.CurrentUserName)
 	if err != nil {
 		return fmt.Errorf("Unable to find user `%s`: %v", s.cfg.CurrentUserName, err)
