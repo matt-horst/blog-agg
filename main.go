@@ -46,7 +46,7 @@ func (c *commands) run(s *state, cmd command) error {
 	return nil
 }
 
-func (c *commands) regiseter(name string, f func(*state, command) error) {
+func (c *commands) register(name string, f func(*state, command) error) {
 	c.handlers[name] = f
 }
 
@@ -67,11 +67,12 @@ func main() {
 	}
 
 	cmds := commands {handlers: make(map[string]func(*state, command) error)}
-	cmds.regiseter("login", handlerLogin)
-	cmds.regiseter("register", handlerRegister)
-	cmds.regiseter("reset", handlerReset)
-	cmds.regiseter("users", handlerUsers)
-	cmds.regiseter("agg", handlerAgg)
+	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
+	cmds.register("agg", handlerAgg)
+	cmds.register("addfeed", handlerAddFeed)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -219,6 +220,38 @@ func handlerAgg(s *state, cmd command) error {
 	}
 
 	fmt.Println(rssFeed)
+
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		return fmt.Errorf("addfeed requires two arguments: name url")
+	}
+
+	name := cmd.args[0]
+	url := cmd.args[1]
+
+	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+
+	params := database.CreateFeedParams{
+		ID: uuid.New(),
+		Name: name,
+		Url: url,
+		UserID: user.ID,
+	}
+	feed, err := s.db.CreateFeed(
+		context.Background(),
+		params,
+	)
+	if err != nil {
+		return fmt.Errorf("Failed to create new feed: %v\n", err)
+	}
+
+	fmt.Println(feed)
 
 	return nil
 }

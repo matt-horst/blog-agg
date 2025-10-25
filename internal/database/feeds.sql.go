@@ -21,7 +21,7 @@ type CreateFeedParams struct {
 	ID     uuid.UUID
 	Name   string
 	Url    string
-	UserID uuid.NullUUID
+	UserID uuid.UUID
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, error) {
