@@ -1,17 +1,23 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/matt-host/blog-agg/internal/config"
+	"github.com/google/uuid"
+	"github.com/matt-host/blog-agg/internal/database"
+
 	_ "github.com/lib/pq"
+	"github.com/matt-host/blog-agg/internal/config"
 )
 
 
 type state struct {
 	cfg *config.Config
+	db *database.Queries
 }
 
 type command struct {
@@ -47,10 +53,19 @@ func main() {
 		log.Fatalf("Failed to read config file: %v\n", err)
 	}
 
-	s := &state{cfg: &cfg}
+	db, err := sql.Open("postgres", cfg.DbURL)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+
+	s := &state{
+		cfg: &cfg,
+		db: database.New(db),
+	}
 
 	cmds := commands {handlers: make(map[string]func(*state, command) error)}
 	cmds.regiseter("login", handlerLogin)
+	cmds.regiseter("register", handlerRegister)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -72,14 +87,45 @@ func handlerLogin(s *state, cmd command) error {
 		return fmt.Errorf("Username is required\n")
 	}
 
-	user :=  cmd.args[0]
+	name :=  cmd.args[0]
 
-	err := s.cfg.SetUser(user)
+	user, err := s.db.GetUser(context.Background(), name)
+	if err != nil {
+		return fmt.Errorf("Unable to find user: %v\n", err)
+	}
+
+	err = s.cfg.SetUser(user.Name)
 	if err != nil {
 		return fmt.Errorf("Failed to set the new user: %v\n", err)
 	}
 
-	fmt.Printf("New user set to `%s`\n", user)
+	fmt.Printf("New user set to `%s`\n", user.Name)
+
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("Username is a required argument\n")
+	}
+
+	name := cmd.args[0]
+
+	params := database.CreateUserParams{
+		ID: uuid.New(),
+		Name: name,
+	}
+	_, err := s.db.CreateUser(context.Background(), params)
+	if err != nil {
+		return fmt.Errorf("Failed to create new user: %v\n", err)
+	}
+
+	err = s.cfg.SetUser(name)
+	if err != nil {
+		return fmt.Errorf("Failed to user: %v\n", err)
+	}
+
+	fmt.Printf("New user successfully created: %s\n", name)
 
 	return nil
 }
