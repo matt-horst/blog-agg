@@ -189,3 +189,29 @@ func handlerFollowing(s *state, _ command, _ database.User) error {
 
 	return nil
 }
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("unfollow requires url as argument")
+	}
+
+	url := cmd.args[0]
+
+	feed, err := s.db.GetFeed(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("Unable to find feed for `%s`: %v", err)
+	}
+
+	_, err = s.db.DeleteFeedFollow(
+		context.Background(),
+		database.DeleteFeedFollowParams{
+			UserID: user.ID,
+			FeedID: feed.ID,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("Unable to find feed-follow: %v", err)
+	}
+
+	return nil
+}
