@@ -1,15 +1,10 @@
 package main
 
 import (
-	"context"
 	"database/sql"
-	"encoding/xml"
 	"fmt"
-	"html"
 	"log"
-	"net/http"
 	"os"
-
 	"github.com/matt-horst/blog-agg/internal/config"
 	"github.com/matt-horst/blog-agg/internal/database"
 
@@ -76,6 +71,7 @@ func main() {
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
 	cmds.register("agg", handlerAgg)
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -92,74 +88,3 @@ func main() {
 	}
 }
 
-
-type RSSFeed struct {
-	Channel struct {
-		Title 		string 		`xml:"title"`
-		Link 		string 		`xml:"link"`
-		Description string 		`xml:"description"`
-		Item 		[]RSSItem 	`xml:"item"`
-	} `xml:"channel"`
-}
-
-type RSSItem struct {
-	Title 		string `xml:"title"`
-	Link 		string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate 	string `xml:"pubDate"`
-}
-
-func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create GET request for URL `%s`: %v", feedURL, err)
-	}
-
-	req.Header.Set("User-Agent", "gator")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get response from `%s`: %v", feedURL, err)
-	}
-
-	rssFeed := &RSSFeed{}
-	decoder := xml.NewDecoder(resp.Body)
-	err = decoder.Decode(rssFeed)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to decode rss feed xml: %v", err)
-	}
-
-	// Unescape HTML entities
-	rssFeed.Channel.Title = html.UnescapeString(rssFeed.Channel.Title)
-	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
-	for i, item := range rssFeed.Channel.Item {
-		rssFeed.Channel.Item[i].Title = html.UnescapeString(item.Title)
-		rssFeed.Channel.Item[i].Description = html.UnescapeString(item.Description)
-	}
-
-	return rssFeed, nil
-}
-
-func scrapeFeeds(s *state) error {
-	feed, err := s.db.GetNextFeedToFetch(context.Background())
-	if err != nil {
-		return fmt.Errorf("Failed to get next feed: %v", err)
-	}
-
-	err = s.db.MarkFeedFetched(context.Background(), feed.ID)
-	if err != nil {
-		return fmt.Errorf("Failed to mark feed as fetched: %v", err)
-	}
-
-	fetchedFeed, err := fetchFeed(context.Background(), feed.Url)
-	if err != nil {
-		return fmt.Errorf("Failed to fetch feed: %v", err)
-	}
-
-	fmt.Println(feed.Name)
-	for _, item := range fetchedFeed.Channel.Item {
-		fmt.Printf("* %s\n", item.Title)
-	}
-
-	return nil
-}
