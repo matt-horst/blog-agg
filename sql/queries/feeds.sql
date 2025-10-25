@@ -4,5 +4,8 @@ VALUES ($1, NOW(), NOW(), $2, $3, $4)
 RETURNING *;
 
 -- name: GetFeeds :many
-SELECT feeds.*, users.name FROM feeds
+SELECT feeds.*, users.name AS user_name FROM feeds
 INNER JOIN users ON feeds.user_id = users.id;
+
+-- name: GetFeed :one
+SELECT * FROM feeds WHERE url = $1;

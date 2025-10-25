@@ -10,11 +10,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
-	"github.com/matt-host/blog-agg/internal/database"
+	"github.com/matt-horst/blog-agg/internal/config"
+	"github.com/matt-horst/blog-agg/internal/database"
 
 	_ "github.com/lib/pq"
-	"github.com/matt-host/blog-agg/internal/config"
 )
 
 
@@ -74,6 +73,8 @@ func main() {
 	cmds.register("agg", handlerAgg)
 	cmds.register("addfeed", handlerAddFeed)
 	cmds.register("feeds", handlerFeeds)
+	cmds.register("follow", handlerFollow)
+	cmds.register("following", handlerFollowing)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -90,81 +91,6 @@ func main() {
 	}
 }
 
-func handlerLogin(s *state, cmd command) error {
-	if len(cmd.args) == 0 {
-		return fmt.Errorf("Username is required\n")
-	}
-
-	name :=  cmd.args[0]
-
-	user, err := s.db.GetUser(context.Background(), name)
-	if err != nil {
-		return fmt.Errorf("Unable to find user: %v\n", err)
-	}
-
-	err = s.cfg.SetUser(user.Name)
-	if err != nil {
-		return fmt.Errorf("Failed to set the new user: %v\n", err)
-	}
-
-	fmt.Printf("New user set to `%s`\n", user.Name)
-
-	return nil
-}
-
-func handlerRegister(s *state, cmd command) error {
-	if len(cmd.args) == 0 {
-		return fmt.Errorf("Username is a required argument\n")
-	}
-
-	name := cmd.args[0]
-
-	params := database.CreateUserParams{
-		ID: uuid.New(),
-		Name: name,
-	}
-	_, err := s.db.CreateUser(context.Background(), params)
-	if err != nil {
-		return fmt.Errorf("Failed to create new user: %v\n", err)
-	}
-
-	err = s.cfg.SetUser(name)
-	if err != nil {
-		return fmt.Errorf("Failed to user: %v\n", err)
-	}
-
-	fmt.Printf("New user successfully created: %s\n", name)
-
-	return nil
-}
-
-func handlerReset(s *state, cmd command) error {
-	err := s.db.ResetUsers(context.Background())
-	if err != nil {
-		return fmt.Errorf("Failed to reset users table: %v\n", err)
-	}
-
-	return nil
-}
-
-func handlerUsers(s *state, cmd command) error {
-	users, err := s.db.GetUsers(context.Background())
-	if err != nil {
-		return fmt.Errorf("Failed to get users from database: %v\n", err)
-	}
-
-	// Print all users to console
-	for _, user := range users {
-		current := ""
-		if user.Name == s.cfg.CurrentUserName {
-			current = " (current)"
-		} 
-
-		fmt.Printf("* %s%s\n", user.Name, current)
-	}
-
-	return nil
-}
 
 type RSSFeed struct {
 	Channel struct {
@@ -185,21 +111,21 @@ type RSSItem struct {
 func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create GET request for URL `%s`: %v\n", feedURL, err)
+		return nil, fmt.Errorf("Failed to create GET request for URL `%s`: %v", feedURL, err)
 	}
 
 	req.Header.Set("User-Agent", "gator")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get response from `%s`: %v\n", feedURL, err)
+		return nil, fmt.Errorf("Failed to get response from `%s`: %v", feedURL, err)
 	}
 
 	rssFeed := &RSSFeed{}
 	decoder := xml.NewDecoder(resp.Body)
 	err = decoder.Decode(rssFeed)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to decode rss feed xml: %v\n", err)
+		return nil, fmt.Errorf("Failed to decode rss feed xml: %v", err)
 	}
 
 	// Unescape HTML entities
@@ -211,61 +137,4 @@ func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	}
 
 	return rssFeed, nil
-}
-
-func handlerAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-	rssFeed, err := fetchFeed(context.Background(), url)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(rssFeed)
-
-	return nil
-}
-
-func handlerAddFeed(s *state, cmd command) error {
-	if len(cmd.args) != 2 {
-		return fmt.Errorf("addfeed requires two arguments: name url")
-	}
-
-	name := cmd.args[0]
-	url := cmd.args[1]
-
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return err
-	}
-
-	params := database.CreateFeedParams{
-		ID: uuid.New(),
-		Name: name,
-		Url: url,
-		UserID: user.ID,
-	}
-	feed, err := s.db.CreateFeed(
-		context.Background(),
-		params,
-	)
-	if err != nil {
-		return fmt.Errorf("Failed to create new feed: %v\n", err)
-	}
-
-	fmt.Println(feed)
-
-	return nil
-}
-
-func handlerFeeds(s *state, cmd command) error {
-	feeds, err := s.db.GetFeeds(context.Background())
-	if err != nil {
-		return fmt.Errorf("Failed to get feeds from database: %v\n", err)
-	}
-
-	for _, feed := range feeds {
-		fmt.Printf("* %s %s %s\n", feed.Name, feed.Url, feed.Name_2)
-	}
-
-	return nil
 }

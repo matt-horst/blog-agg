@@ -1,4 +1,4 @@
-module github.com/matt-host/blog-agg
+module github.com/matt-horst/blog-agg
 
 go 1.25.3
 
