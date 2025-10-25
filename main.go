@@ -66,6 +66,7 @@ func main() {
 	cmds := commands {handlers: make(map[string]func(*state, command) error)}
 	cmds.regiseter("login", handlerLogin)
 	cmds.regiseter("register", handlerRegister)
+	cmds.regiseter("reset", handlerReset)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -126,6 +127,15 @@ func handlerRegister(s *state, cmd command) error {
 	}
 
 	fmt.Printf("New user successfully created: %s\n", name)
+
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.ResetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to reset users table: %v\n", err)
+	}
 
 	return nil
 }
