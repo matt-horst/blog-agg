@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
+
 	"github.com/matt-horst/blog-agg/internal/database"
 
 	"github.com/google/uuid"
@@ -199,7 +202,7 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 
 	feed, err := s.db.GetFeed(context.Background(), url)
 	if err != nil {
-		return fmt.Errorf("Unable to find feed for `%s`: %v", err)
+		return fmt.Errorf("Unable to find feed for `%s`: %v", url, err)
 	}
 
 	_, err = s.db.DeleteFeedFollow(
@@ -214,4 +217,26 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	}
 
 	return nil
+}
+
+func handlerAgg(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("agg requires time between requests argument")
+	}
+
+	timeBetweenReqs, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("Failed to parse `%s` as a duration: %v", cmd.args[0], err)
+	}
+
+	fmt.Printf("Printing feeds every %v\n", timeBetweenReqs)
+
+	ticker := time.NewTicker(timeBetweenReqs)
+
+	for ; ; <-ticker.C {
+		err = scrapeFeeds(s)
+		if err != nil {
+			log.Printf("Failed to scrape feeds: %v\n", err)
+		}
+	}
 }

@@ -75,6 +75,7 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("agg", handlerAgg)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -139,3 +140,26 @@ func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	return rssFeed, nil
 }
 
+func scrapeFeeds(s *state) error {
+	feed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to get next feed: %v", err)
+	}
+
+	err = s.db.MarkFeedFetched(context.Background(), feed.ID)
+	if err != nil {
+		return fmt.Errorf("Failed to mark feed as fetched: %v", err)
+	}
+
+	fetchedFeed, err := fetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		return fmt.Errorf("Failed to fetch feed: %v", err)
+	}
+
+	fmt.Println(feed.Name)
+	for _, item := range fetchedFeed.Channel.Item {
+		fmt.Printf("* %s\n", item.Title)
+	}
+
+	return nil
+}
