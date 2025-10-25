@@ -73,6 +73,7 @@ func main() {
 	cmds.register("users", handlerUsers)
 	cmds.register("agg", handlerAgg)
 	cmds.register("addfeed", handlerAddFeed)
+	cmds.register("feeds", handlerFeeds)
 
 	if len(os.Args) < 2 {
 		log.Fatalf("Requires at least 2 args\n")
@@ -252,6 +253,19 @@ func handlerAddFeed(s *state, cmd command) error {
 	}
 
 	fmt.Println(feed)
+
+	return nil
+}
+
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("Failed to get feeds from database: %v\n", err)
+	}
+
+	for _, feed := range feeds {
+		fmt.Printf("* %s %s %s\n", feed.Name, feed.Url, feed.Name_2)
+	}
 
 	return nil
 }
