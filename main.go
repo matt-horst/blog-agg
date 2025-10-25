@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"github.com/matt-host/blog-agg/internal/config"
+	_ "github.com/lib/pq"
 )
+
 
 type state struct {
 	cfg *config.Config
